@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>하맘 매물지도 PRO</title>
+    <!-- 리플렛(Leaflet) 지도 CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <style>
+        /* 기본 리셋 및 레이아웃 설정 */
+        * { box-sizing: border-box; }
+        body { 
+            font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; 
+            margin: 0; 
+            padding: 0; 
+            display: flex; 
+            height: 100vh; 
+            background: #f0f2f5; 
+            overflow: hidden;
+        }
+
+        /* 왼쪽 사이드바 영역 */
+        .sidebar { 
+            width: 350px; 
+            min-width: 350px;
+            background: white; 
+            border-right: 1px solid #ccc; 
+            display: flex; 
+            flex-direction: column; 
+            z-index: 1000;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+        }
+
+        /* 사이드바 헤더 */
+        .header { padding: 20px; border-bottom: 1px solid #eee; }
+        .header h1 { margin: 0; font-size: 22px; color: #2563eb; }
+        
+        /* 버튼 디자인 */
+        .btn { 
+            display: block; 
+            width: 100%; 
+            text-align: center; 
+            padding: 12px; 
+            background: #2563eb; 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            margin-top: 15px; 
+            font-weight: bold;
+            font-size: 15px;
+        }
+        .btn:hover { background: #1d4ed8; }
+
+        /* 중개인 / 고객 탭 */
+        .tabs { display: flex; padding: 10px; background: #f8fafc; border-bottom: 1px solid #eee; }
+        .tab { flex: 1; text-align: center; padding: 10px; cursor: pointer; border-radius: 5px; font-weight: bold; color: #64748b;}
+        .tab.active { background: #2563eb; color: white; }
+
+        /* 리스트 영역 */
+        .list { flex: 1; overflow-y: auto; padding: 15px; }
+        .item { 
+            padding: 15px; 
+            border: 1px solid #e2e8f0; 
+            margin-bottom: 15px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            transition: 0.2s;
+            background: #fff;
+        }
+        .item:hover { border-color: #2563eb; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transform: translateY(-2px); }
+        .item-title { font-weight: bold; font-size: 16px; margin-bottom: 5px; color: #1e293b; }
+        .item-price { color: #2563eb; font-weight: bold; font-size: 18px; }
+        .item-desc { font-size: 13px; color: #64748b; margin-top: 8px; }
+
+        /* 사이드바 하단 정보 */
+        .sidebar-footer {
+            padding: 15px;
+            background: #f8fafc;
+            border-top: 1px solid #eee;
+            font-size: 14px;
+            color: #1e293b;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        /* 오른쪽 지도 영역 */
+        .map-container { flex: 1; position: relative; background: #e5e7eb; min-height: 100vh; }
+        #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+        
+        /* GPS 플로팅 버튼 */
+        .gps-btn {
+            position: absolute;
+            bottom: 25px;
+            right: 25px;
+            width: 50px;
+            height: 50px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            cursor: pointer;
+            z-index: 1001;
+            border: 2px solid #2563eb;
+            font-size: 20px;
+        }
+        .gps-btn:hover { background: #f1f5f9; }
+
+        /* 길찾기 버튼 그룹 */
+        .nav-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 10px; }
+        .nav-btn { 
+            padding: 8px; 
+            font-size: 12px; 
+            text-decoration: none; 
+            color: white !important; 
+            border-radius: 4px; 
+            text-align: center;
+            font-weight: bold;
+        }
+        .nav-naver { background: #03c75a; }
+        .nav-kakao { background: #fee500; color: #3c1e1e !important; }
+        .nav-tmap { background: #ff4500; }
+
+        /* 모바일 대응 */
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            .sidebar { width: 100%; min-width: 100%; height: 40vh; border-right: none; border-bottom: 1px solid #ccc; }
+            .map-container { height: 60vh; flex: none; }
+        }
+    </style>
+    <!-- 리플렛(Leaflet) 지도 JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+</head>
+<body>
+
+    <!-- 왼쪽 사이드바 (메뉴 및 리스트) -->
+    <div class="sidebar">
+        <div class="header">
+            <h1 id="logo">📍 하맘 매물지도 PRO</h1>
+            <p style="margin: 5px 0 0 0; color: #666; font-size: 13px;">쉽고 빠른 부동산 매물 관리</p>
+            <button class="btn" id="addBtn">+ 현재 위치에 매물 등록</button>
+        </div>
+        
+        <div class="tabs">
+            <div class="tab active" id="tabBroker">중개인용</div>
+            <div class="tab" id="tabClient">고객용 (공유)</div>
+        </div>
+
+        <div class="list" id="propertyList">
+            <!-- 자바스크립트를 통해 여기에 매물 리스트가 표시됩니다 -->
+        </div>
+
+        <div class="sidebar-footer">
+            📞 문의: 1660-1195
+        </div>
+    </div>
+
+    <!-- 오른쪽 지도 -->
+    <div class="map-container">
+        <div id="map"></div>
+        <!-- GPS 버튼 -->
+        <div class="gps-btn" id="gpsBtn" title="내 위치 찾기">📍</div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            // 1. 매물 데이터 (총 8개)
+            const properties = [
+                { id: 101, title: '용산구 한남동 프리미엄 빌라', price: '매매 45억', lat: 37.5342, lng: 127.0012, desc: '나인원 한남 인근 고급 거주지' },
+                { id: 102, title: '마포구 서교동 카페 상가', price: '월세 5000 / 350', lat: 37.5512, lng: 126.9212, desc: '홍대 메인 거리 목 좋은 상가' },
+                { id: 103, title: '영등포구 여의도동 고층 오피스텔', price: '전세 8.5억', lat: 37.5252, lng: 126.9242, desc: '더현대 서울 도보권 직주근접' },
+                { id: 104, title: '성동구 성수동 지식산업센터', price: '매매 12억', lat: 37.5442, lng: 127.0512, desc: '성수역 인근 리모델링 완료' },
+                { id: 105, title: '강서구 마곡동 신축 아파트', price: '전세 6.2억', lat: 37.5592, lng: 126.8312, desc: 'LG 사이언스파크 인근 단지' },
+                { id: 1, title: '강남구 역삼동 오피스텔', price: '월세 1000 / 120', lat: 37.4980, lng: 127.0276, desc: '강남역 도보 5분 거리' },
+                { id: 2, title: '서초구 반포동 아파트', price: '매매 32억', lat: 37.5012, lng: 127.0012, desc: '리모델링 완료 (방 4개)' },
+                { id: 3, title: '송파구 잠실동 신축 빌라', price: '전세 4.5억', lat: 37.5133, lng: 127.1001, desc: '대출 가능, 주차 편리' }
+            ];
+
+            const listEl = document.getElementById('propertyList');
+            let map;
+
+            function renderList() {
+                listEl.innerHTML = '';
+                properties.forEach(p => {
+                    const div = document.createElement('div');
+                    div.className = 'item';
+                    div.innerHTML = `
+                        <div class="item-price">${p.price}</div>
+                        <div class="item-title">${p.title}</div>
+                        <div class="item-desc">${p.desc}</div>
+                    `;
+                    div.onclick = () => { if(map) map.setView([p.lat, p.lng], 16); };
+                    listEl.appendChild(div);
+                });
+            }
+
+            function initMap() {
+                try {
+                    const mapEl = document.getElementById('map');
+                    if(!mapEl) return;
+                    
+                    map = L.map('map').setView([37.52, 126.98], 12);
+                    
+                    // 더 안정적인 타일 레이어 (OpenStreetMap)
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; OSM'
+                    }).addTo(map);
+
+                    properties.forEach(p => {
+                        const marker = L.marker([p.lat, p.lng]).addTo(map);
+                        
+                        // 네비게이션 링크 생성
+                        const nv = `https://map.naver.com/v5/directions/-/lat,lng,name/-/`.replace('lat,lng,name', `${p.lat},${p.lng},${p.title}`);
+                        const kk = `https://map.kakao.com/link/to/${p.title},${p.lat},${p.lng}`;
+                        const tm = `https://apis.openapi.sk.com/tmap/app/routes?appKey=test&name=${p.title}&lon=${p.lng}&lat=${p.lat}`;
+
+                        const popupHtml = `
+                            <div style="width:200px;">
+                                <strong style="color:#2563eb;">${p.price}</strong><br>${p.title}
+                                <div class="nav-btns">
+                                    <a href="${nv}" target="_blank" class="nav-btn nav-naver">네이버</a>
+                                    <a href="${kk}" target="_blank" class="nav-btn nav-kakao">카카오</a>
+                                    <a href="${tm}" target="_blank" class="nav-btn nav-tmap" style="grid-column: span 2;">티맵 길안내</a>
+                                </div>
+                            </div>
+                        `;
+                        marker.bindPopup(popupHtml);
+                    });
+                } catch (e) {
+                    console.error("로딩 에러:", e);
+                }
+            }
+
+            function initEvents() {
+                const addBtn = document.getElementById('addBtn');
+                const gpsBtn = document.getElementById('gpsBtn');
+                
+                // 매물 등록 (비밀번호 1191004)
+                addBtn.onclick = () => {
+                    const pass = prompt("관리자 비밀번호를 입력하세요.");
+                    if(pass === "1191004") {
+                        const center = map.getCenter();
+                        const newProp = {
+                            id: Date.now(),
+                            title: '신규 등록 매물',
+                            price: '매매 협의',
+                            lat: center.lat,
+                            lng: center.lng,
+                            desc: '지도 위치 지정을 통해 등록된 신규 매물입니다.'
+                        };
+                        properties.unshift(newProp);
+                        renderList();
+                        L.marker([newProp.lat, newProp.lng]).addTo(map).bindPopup(`<strong>${newProp.price}</strong><br>${newProp.title}`).openPopup();
+                        alert("등록 완료!");
+                    } else {
+                        alert("비밀번호가 틀렸습니다.");
+                    }
+                };
+
+                // GPS 버튼
+                gpsBtn.onclick = () => {
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition((pos) => {
+                            map.setView([pos.coords.latitude, pos.coords.longitude], 16);
+                            L.circle([pos.coords.latitude, pos.coords.longitude], { radius: 100 }).addTo(map).bindPopup("내 위치").openPopup();
+                        }, () => alert("위치 접근 권한을 확인하세요."));
+                    }
+                };
+            }
+
+            renderList();
+            initMap();
+            initEvents();
+        });
+    </script>
+</body>
+</html>
